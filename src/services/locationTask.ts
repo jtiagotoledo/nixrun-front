@@ -1,4 +1,5 @@
 import * as TaskManager from 'expo-task-manager';
+import { useRunStore } from '../store/useRunStore';
 
 export const LOCATION_TASK_NAME = 'NIXRUN_BACKGROUND_LOCATION';
 
@@ -12,10 +13,10 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
     const { locations } = data as { locations: any[] };
     const maisRecente = locations[0];
     
-    console.log("📍 Nova coordenada (Serviço Isolado):", {
+
+    useRunStore.getState().setCurrentLocation({
       latitude: maisRecente.coords.latitude,
       longitude: maisRecente.coords.longitude,
     });
-
   }
 });

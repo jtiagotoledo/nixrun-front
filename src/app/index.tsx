@@ -1,15 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text, Button, StyleSheet, Alert } from 'react-native';
 import * as Location from 'expo-location';
+import { useRunStore } from '../store/useRunStore';
 
-// IMPORTANTE: Certifique-se de que o caminho abaixo aponta para o arquivo que criamos
 import { LOCATION_TASK_NAME } from '../services/locationTask';
 
 export default function HomeScreen() {
   const [permissionStatus, setPermissionStatus] = useState('Pendente');
   const [isTracking, setIsTracking] = useState(false);
+  const currentLocation = useRunStore((state) => state.currentLocation);
 
-  // Verifica se a corrida já estava rolando quando o app abriu
   useEffect(() => {
     const verificarStatus = async () => {
       const hasStarted = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
@@ -22,12 +22,12 @@ export default function HomeScreen() {
   const solicitarPermissoes = async () => {
     try {
       setPermissionStatus('Solicitando...');
-      
+
       const { status: fgStatus } = await Location.requestForegroundPermissionsAsync();
       if (fgStatus !== 'granted') {
         Alert.alert("Negado", "O Nixrun precisa do GPS para funcionar.");
         setPermissionStatus('Negado (Primeiro Plano)');
-        return; 
+        return;
       }
 
       const { status: bgStatus } = await Location.requestBackgroundPermissionsAsync();
@@ -63,14 +63,14 @@ export default function HomeScreen() {
       }
 
       await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-        accuracy: Location.Accuracy.BestForNavigation, 
-        timeInterval: 2000, 
-        distanceInterval: 1, 
-        showsBackgroundLocationIndicator: true, 
+        accuracy: Location.Accuracy.BestForNavigation,
+        timeInterval: 2000,
+        distanceInterval: 1,
+        showsBackgroundLocationIndicator: true,
         foregroundService: {
           notificationTitle: "Nixrun",
           notificationBody: "Gravando sua corrida...",
-          notificationColor: "#208AEF", 
+          notificationColor: "#208AEF",
         },
       });
 
@@ -95,7 +95,7 @@ export default function HomeScreen() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Bem-vindo ao Nixrun</Text>
-      
+
       <Text style={styles.texto}>
         Para gravar suas corridas com o celular no bolso, precisamos de acesso ao seu GPS o tempo todo.
       </Text>
@@ -104,9 +104,9 @@ export default function HomeScreen() {
 
       {/* Botão de Permissões (Pode ser escondido no futuro se o status já for 'granted') */}
       <View style={styles.espacoBotao}>
-        <Button 
-          title="🛡️ Conceder Permissões" 
-          onPress={solicitarPermissoes} 
+        <Button
+          title="🛡️ Conceder Permissões"
+          onPress={solicitarPermissoes}
           color="#555"
         />
       </View>
@@ -116,9 +116,9 @@ export default function HomeScreen() {
 
       {/* Botão de Start */}
       <View style={styles.espacoBotao}>
-        <Button 
-          title={isTracking ? "🏃‍♂️ GRAVANDO..." : "▶️ INICIAR CORRIDA"} 
-          onPress={iniciarCorrida} 
+        <Button
+          title={isTracking ? "🏃‍♂️ GRAVANDO..." : "▶️ INICIAR CORRIDA"}
+          onPress={iniciarCorrida}
           color="#208AEF"
           disabled={isTracking} // Desabilita o botão se já estiver correndo
         />
@@ -126,12 +126,25 @@ export default function HomeScreen() {
 
       {/* Botão de Stop */}
       <View style={styles.espacoBotao}>
-        <Button 
-          title="⏹️ PARAR CORRIDA" 
-          onPress={pararCorrida} 
+        <Button
+          title="⏹️ PARAR CORRIDA"
+          onPress={pararCorrida}
           color="#FF4500"
           disabled={!isTracking} // Só habilita se estiver correndo
         />
+      </View>
+      <View style={{ marginVertical: 20, padding: 15, backgroundColor: '#f0f0f0', borderRadius: 8, width: '90%' }}>
+        <Text style={{ fontWeight: 'bold', textAlign: 'center', marginBottom: 10 }}>Dados do GPS Atual:</Text>
+        {currentLocation ? (
+          <>
+            <Text>Latitude: {currentLocation.latitude}</Text>
+            <Text>Longitude: {currentLocation.longitude}</Text>
+          </>
+        ) : (
+          <Text style={{ fontStyle: 'italic', color: '#888', textAlign: 'center' }}>
+            A aguardar sinal do satélite...
+          </Text>
+        )}
       </View>
 
     </View>

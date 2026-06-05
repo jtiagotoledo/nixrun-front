@@ -1,47 +1,94 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, Button, StyleSheet, Alert } from 'react-native';
 import * as Location from 'expo-location';
 
-export default function PermissionScreen() {
-  const [permissionStatus, setPermissionStatus] = useState('Pendente');
+// IMPORTANTE: Certifique-se de que o caminho abaixo aponta para o arquivo que criamos
+import { LOCATION_TASK_NAME } from '../services/locationTask';
 
+export default function HomeScreen() {
+  const [permissionStatus, setPermissionStatus] = useState('Pendente');
+  const [isTracking, setIsTracking] = useState(false);
+
+  // Verifica se a corrida já estava rolando quando o app abriu
+  useEffect(() => {
+    const verificarStatus = async () => {
+      const hasStarted = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
+      setIsTracking(hasStarted);
+    };
+    verificarStatus();
+  }, []);
+
+  // --- 1. LÓGICA DE PERMISSÕES ---
   const solicitarPermissoes = async () => {
     try {
-      setPermissionStatus('Solicitando permissão básica...');
+      setPermissionStatus('Solicitando...');
       
-      // 1. Pede permissão de Primeiro Plano (Foreground)
       const { status: fgStatus } = await Location.requestForegroundPermissionsAsync();
-      
       if (fgStatus !== 'granted') {
-        Alert.alert(
-          "Permissão Negada", 
-          "O Nixrun precisa do GPS para funcionar. Habilite nas configurações do celular."
-        );
+        Alert.alert("Negado", "O Nixrun precisa do GPS para funcionar.");
         setPermissionStatus('Negado (Primeiro Plano)');
-        return; // Para o fluxo aqui se o usuário negar
+        return; 
       }
 
-      setPermissionStatus('Solicitando permissão de segundo plano...');
-
-      // 2. Pede permissão de Segundo Plano (Background)
       const { status: bgStatus } = await Location.requestBackgroundPermissionsAsync();
-
       if (bgStatus !== 'granted') {
-        Alert.alert(
-          "Atenção", 
-          "Sem a permissão de segundo plano, a corrida vai parar de gravar se você desligar a tela."
-        );
+        Alert.alert("Atenção", "Sem a permissão de segundo plano, a gravação vai parar com a tela desligada.");
         setPermissionStatus('Apenas Primeiro Plano');
         return;
       }
 
-      // Se chegou aqui, deu tudo certo!
       setPermissionStatus('Tudo Certo! Pronto para correr.');
       Alert.alert("Sucesso!", "Todas as permissões concedidas.");
 
     } catch (error) {
       console.error("Erro ao solicitar permissões:", error);
       setPermissionStatus('Erro ao solicitar');
+    }
+  };
+
+  // --- 2. LÓGICA DE INICIAR A CORRIDA ---
+  const iniciarCorrida = async () => {
+    try {
+      // Trava de segurança: verifica a permissão de background antes de tentar ligar o motor
+      const { status } = await Location.getBackgroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert("Ops!", "Por favor, conceda as permissões de GPS primeiro.");
+        return;
+      }
+
+      const hasStarted = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
+      if (hasStarted) {
+        console.log("Já está gravando!");
+        return;
+      }
+
+      await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
+        accuracy: Location.Accuracy.BestForNavigation, 
+        timeInterval: 2000, 
+        distanceInterval: 1, 
+        showsBackgroundLocationIndicator: true, 
+        foregroundService: {
+          notificationTitle: "Nixrun",
+          notificationBody: "Gravando sua corrida...",
+          notificationColor: "#208AEF", 
+        },
+      });
+
+      setIsTracking(true);
+      console.log("🚀 Motor de rastreamento ligado!");
+    } catch (error) {
+      console.error("Erro ao iniciar rastreamento:", error);
+    }
+  };
+
+  // --- 3. LÓGICA DE PARAR A CORRIDA ---
+  const pararCorrida = async () => {
+    try {
+      await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
+      setIsTracking(false);
+      console.log("🛑 Rastreamento parado.");
+    } catch (error) {
+      console.error("Erro ao parar rastreamento:", error);
     }
   };
 
@@ -53,13 +100,40 @@ export default function PermissionScreen() {
         Para gravar suas corridas com o celular no bolso, precisamos de acesso ao seu GPS o tempo todo.
       </Text>
 
-      <Text style={styles.status}>Status atual: {permissionStatus}</Text>
+      <Text style={styles.status}>Status GPS: {permissionStatus}</Text>
 
-      <Button 
-        title="Conceder Permissões de GPS" 
-        onPress={solicitarPermissoes} 
-        color="#208AEF"
-      />
+      {/* Botão de Permissões (Pode ser escondido no futuro se o status já for 'granted') */}
+      <View style={styles.espacoBotao}>
+        <Button 
+          title="🛡️ Conceder Permissões" 
+          onPress={solicitarPermissoes} 
+          color="#555"
+        />
+      </View>
+
+      {/* Divisória visual */}
+      <View style={styles.divisor} />
+
+      {/* Botão de Start */}
+      <View style={styles.espacoBotao}>
+        <Button 
+          title={isTracking ? "🏃‍♂️ GRAVANDO..." : "▶️ INICIAR CORRIDA"} 
+          onPress={iniciarCorrida} 
+          color="#208AEF"
+          disabled={isTracking} // Desabilita o botão se já estiver correndo
+        />
+      </View>
+
+      {/* Botão de Stop */}
+      <View style={styles.espacoBotao}>
+        <Button 
+          title="⏹️ PARAR CORRIDA" 
+          onPress={pararCorrida} 
+          color="#FF4500"
+          disabled={!isTracking} // Só habilita se estiver correndo
+        />
+      </View>
+
     </View>
   );
 }
@@ -75,18 +149,30 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 20,
+    marginBottom: 10,
   },
   texto: {
-    fontSize: 16,
+    fontSize: 14,
     textAlign: 'center',
-    marginBottom: 30,
-    color: '#555',
+    marginBottom: 20,
+    color: '#666',
   },
   status: {
     fontSize: 14,
     fontWeight: 'bold',
     marginBottom: 20,
-    color: '#FF4500',
+    color: '#333',
+  },
+  espacoBotao: {
+    width: '100%',
+    marginVertical: 8,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  divisor: {
+    height: 1,
+    width: '80%',
+    backgroundColor: '#ddd',
+    marginVertical: 20,
   }
 });

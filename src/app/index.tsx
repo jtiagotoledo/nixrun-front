@@ -1,63 +1,66 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useState } from 'react';
+import { View, Text, Button, StyleSheet, Alert } from 'react-native';
+import * as Location from 'expo-location';
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+export default function PermissionScreen() {
+  const [permissionStatus, setPermissionStatus] = useState('Pendente');
 
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
+  const solicitarPermissoes = async () => {
+    try {
+      setPermissionStatus('Solicitando permissão básica...');
+      
+      // 1. Pede permissão de Primeiro Plano (Foreground)
+      const { status: fgStatus } = await Location.requestForegroundPermissionsAsync();
+      
+      if (fgStatus !== 'granted') {
+        Alert.alert(
+          "Permissão Negada", 
+          "O Nixrun precisa do GPS para funcionar. Habilite nas configurações do celular."
+        );
+        setPermissionStatus('Negado (Primeiro Plano)');
+        return; // Para o fluxo aqui se o usuário negar
+      }
+
+      setPermissionStatus('Solicitando permissão de segundo plano...');
+
+      // 2. Pede permissão de Segundo Plano (Background)
+      const { status: bgStatus } = await Location.requestBackgroundPermissionsAsync();
+
+      if (bgStatus !== 'granted') {
+        Alert.alert(
+          "Atenção", 
+          "Sem a permissão de segundo plano, a corrida vai parar de gravar se você desligar a tela."
+        );
+        setPermissionStatus('Apenas Primeiro Plano');
+        return;
+      }
+
+      // Se chegou aqui, deu tudo certo!
+      setPermissionStatus('Tudo Certo! Pronto para correr.');
+      Alert.alert("Sucesso!", "Todas as permissões concedidas.");
+
+    } catch (error) {
+      console.error("Erro ao solicitar permissões:", error);
+      setPermissionStatus('Erro ao solicitar');
+    }
+  };
+
   return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
-  );
-}
+    <View style={styles.container}>
+      <Text style={styles.title}>Bem-vindo ao Nixrun</Text>
+      
+      <Text style={styles.texto}>
+        Para gravar suas corridas com o celular no bolso, precisamos de acesso ao seu GPS o tempo todo.
+      </Text>
 
-export default function HomeScreen() {
-  return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
+      <Text style={styles.status}>Status atual: {permissionStatus}</Text>
 
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
-
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
-          />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
-
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
+      <Button 
+        title="Conceder Permissões de GPS" 
+        onPress={solicitarPermissoes} 
+        color="#208AEF"
+      />
+    </View>
   );
 }
 
@@ -65,34 +68,25 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'center',
-    flexDirection: 'row',
-  },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: Spacing.four,
     alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
-  },
-  heroSection: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
+    padding: 20,
+    backgroundColor: '#fff',
   },
   title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 20,
+  },
+  texto: {
+    fontSize: 16,
     textAlign: 'center',
+    marginBottom: 30,
+    color: '#555',
   },
-  code: {
-    textTransform: 'uppercase',
-  },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
-  },
+  status: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginBottom: 20,
+    color: '#FF4500',
+  }
 });

@@ -18,7 +18,16 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.solardev.nixrun"
+      "package": "com.solardev.nixrun",
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_LOCATION"
+      ]
     },
     "web": {
       "output": "static",

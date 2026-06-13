@@ -6,11 +6,16 @@ interface LocationData {
 }
 
 interface RunState {
-  currentLocation: LocationData | null;
-  setCurrentLocation: (location: LocationData) => void;
+  route: LocationData[]; 
+  addCoordinate: (location: LocationData) => void;
+  clearRoute: () => void; 
 }
 
 export const useRunStore = create<RunState>((set) => ({
-  currentLocation: null,
-  setCurrentLocation: (location) => set({ currentLocation: location }),
+  route: [],
+  
+  addCoordinate: (location) => 
+    set((state) => ({ route: [...state.route, location] })),
+    
+  clearRoute: () => set({ route: [] }),
 }));

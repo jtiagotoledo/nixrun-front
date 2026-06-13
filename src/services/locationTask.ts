@@ -13,8 +13,7 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
     const { locations } = data as { locations: any[] };
     const maisRecente = locations[0];
     
-
-    useRunStore.getState().setCurrentLocation({
+    useRunStore.getState().addCoordinate({
       latitude: maisRecente.coords.latitude,
       longitude: maisRecente.coords.longitude,
     });

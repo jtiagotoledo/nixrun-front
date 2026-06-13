@@ -1,14 +1,21 @@
-import { useState, useEffect } from 'react';
-import { View, Text, Button, StyleSheet, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, Button, StyleSheet, Alert, Platform, PermissionsAndroid } from 'react-native';
 import * as Location from 'expo-location';
-import { useRunStore } from '../store/useRunStore';
+import MapView, { Polyline } from 'react-native-maps';
 
+import { useRunStore } from '../store/useRunStore';
 import { LOCATION_TASK_NAME } from '../services/locationTask';
 
 export default function HomeScreen() {
   const [permissionStatus, setPermissionStatus] = useState('Pendente');
   const [isTracking, setIsTracking] = useState(false);
-  const currentLocation = useRunStore((state) => state.currentLocation);
+
+  // 1. Trazendo a rota completa e a função de limpar do Zustand
+  const route = useRunStore((state) => state.route);
+  const clearRoute = useRunStore((state) => state.clearRoute);
+
+  // A localização atual é sempre o último ponto da nossa lista (se existir)
+  const currentLocation = route.length > 0 ? route[route.length - 1] : null;
 
   useEffect(() => {
     const verificarStatus = async () => {
@@ -22,6 +29,14 @@ export default function HomeScreen() {
   const solicitarPermissoes = async () => {
     try {
       setPermissionStatus('Solicitando...');
+
+      // Pede permissão de Notificação (Obrigatório para Android 13+)
+      if (Platform.OS === 'android' && Platform.Version >= 33) {
+        const notifStatus = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+        if (notifStatus !== PermissionsAndroid.RESULTS.GRANTED) {
+          Alert.alert("Aviso", "Sem a permissão de notificações, o Android pode fechar o aplicativo ao gravar.");
+        }
+      }
 
       const { status: fgStatus } = await Location.requestForegroundPermissionsAsync();
       if (fgStatus !== 'granted') {
@@ -49,7 +64,6 @@ export default function HomeScreen() {
   // --- 2. LÓGICA DE INICIAR A CORRIDA ---
   const iniciarCorrida = async () => {
     try {
-      // Trava de segurança: verifica a permissão de background antes de tentar ligar o motor
       const { status } = await Location.getBackgroundPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert("Ops!", "Por favor, conceda as permissões de GPS primeiro.");
@@ -61,6 +75,9 @@ export default function HomeScreen() {
         console.log("Já está gravando!");
         return;
       }
+
+      // Limpa a linha do mapa da corrida anterior
+      clearRoute();
 
       await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
         accuracy: Location.Accuracy.BestForNavigation,
@@ -96,13 +113,31 @@ export default function HomeScreen() {
     <View style={styles.container}>
       <Text style={styles.title}>Bem-vindo ao Nixrun</Text>
 
-      <Text style={styles.texto}>
-        Para gravar suas corridas com o celular no bolso, precisamos de acesso ao seu GPS o tempo todo.
-      </Text>
+      {/* COMPONENTE DO MAPA */}
+      <View style={styles.mapContainer}>
+        <MapView
+          style={styles.map}
+          showsUserLocation={true}
+          followsUserLocation={true}
+        >
+          {route.length > 1 && (
+            <Polyline
+              coordinates={route}
+              strokeColor="#FF4500" // Cor da linha (Laranja)
+              strokeWidth={5} // Espessura
+            />
+          )}
+        </MapView>
+      </View>
 
       <Text style={styles.status}>Status GPS: {permissionStatus}</Text>
 
-      {/* Botão de Permissões (Pode ser escondido no futuro se o status já for 'granted') */}
+      {currentLocation && (
+        <Text style={styles.coords}>
+          Lat: {currentLocation.latitude.toFixed(5)} | Lon: {currentLocation.longitude.toFixed(5)}
+        </Text>
+      )}
+
       <View style={styles.espacoBotao}>
         <Button
           title="🛡️ Conceder Permissões"
@@ -111,42 +146,25 @@ export default function HomeScreen() {
         />
       </View>
 
-      {/* Divisória visual */}
       <View style={styles.divisor} />
 
-      {/* Botão de Start */}
       <View style={styles.espacoBotao}>
         <Button
           title={isTracking ? "🏃‍♂️ GRAVANDO..." : "▶️ INICIAR CORRIDA"}
           onPress={iniciarCorrida}
           color="#208AEF"
-          disabled={isTracking} // Desabilita o botão se já estiver correndo
+          disabled={isTracking}
         />
       </View>
 
-      {/* Botão de Stop */}
       <View style={styles.espacoBotao}>
         <Button
           title="⏹️ PARAR CORRIDA"
           onPress={pararCorrida}
           color="#FF4500"
-          disabled={!isTracking} // Só habilita se estiver correndo
+          disabled={!isTracking}
         />
       </View>
-      <View style={{ marginVertical: 20, padding: 15, backgroundColor: '#f0f0f0', borderRadius: 8, width: '90%' }}>
-        <Text style={{ fontWeight: 'bold', textAlign: 'center', marginBottom: 10 }}>Dados do GPS Atual:</Text>
-        {currentLocation ? (
-          <>
-            <Text>Latitude: {currentLocation.latitude}</Text>
-            <Text>Longitude: {currentLocation.longitude}</Text>
-          </>
-        ) : (
-          <Text style={{ fontStyle: 'italic', color: '#888', textAlign: 'center' }}>
-            A aguardar sinal do satélite...
-          </Text>
-        )}
-      </View>
-
     </View>
   );
 }
@@ -154,27 +172,38 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
     backgroundColor: '#fff',
+    paddingTop: 50, // Dá um espaço no topo para o mapa não colar na barra
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 10,
   },
-  texto: {
-    fontSize: 14,
-    textAlign: 'center',
-    marginBottom: 20,
-    color: '#666',
+  mapContainer: {
+    width: '100%',
+    height: 300,
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginVertical: 15,
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  map: {
+    flex: 1,
   },
   status: {
     fontSize: 14,
     fontWeight: 'bold',
-    marginBottom: 20,
     color: '#333',
+    marginBottom: 5,
+  },
+  coords: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 15,
   },
   espacoBotao: {
     width: '100%',
@@ -186,6 +215,6 @@ const styles = StyleSheet.create({
     height: 1,
     width: '80%',
     backgroundColor: '#ddd',
-    marginVertical: 20,
+    marginVertical: 10,
   }
 });
